@@ -31,54 +31,6 @@ def l2norm(X, dim=-1, eps=1e-8):
     return torch.div(X, norm)
 
 
-def cosine_sim(x1, x2, dim=-1, eps=1e-8):
-    """Returns cosine similarity between x1 and x2, computed along dim."""
-    w12 = torch.sum(x1 * x2, dim)
-    w1 = torch.norm(x1, 2, dim)
-    w2 = torch.norm(x2, 2, dim)
-    return (w12 / (w1 * w2).clamp(min=eps)).squeeze()
-
-
-def get_relation(query, context, smooth=9., eps=1e-8):
-    """Compute normalized cross-attention relation matrix."""
-    batch_size_q, queryL = query.size(0), query.size(1)
-    batch_size,   sourceL = context.size(0), context.size(1)
-
-    queryT = torch.transpose(query, 1, 2)
-    attn = torch.bmm(context, queryT)
-
-    query_norm = (
-        torch.norm(query, p=2, dim=2)
-        .repeat(1, queryL)
-        .view(batch_size_q, queryL, queryL)
-        .clamp(min=1e-8)
-    )
-    source_norm = (
-        torch.norm(context, p=2, dim=2)
-        .repeat(1, sourceL)
-        .view(batch_size_q, sourceL, sourceL)
-        .clamp(min=1e-8)
-    )
-    attn = torch.div(attn, query_norm)
-    attn = torch.div(attn, source_norm)
-    return attn
-
-
-def get_TAposition(depend, lens):
-    """Build adjacency matrix from dependency pairs."""
-    temlen = max(lens)
-    adj = np.zeros((len(lens), temlen, temlen))
-    for j in range(len(depend)):
-        dep = depend[j]
-        for i, pair in enumerate(dep):
-            if i == 0 or pair[0] >= temlen or pair[1] >= temlen:
-                continue
-            adj[j, pair[0], pair[1]] = 1
-            adj[j, pair[1], pair[0]] = 1
-        adj[j] += np.eye(temlen)
-    return torch.from_numpy(adj).cuda().float()
-
-
 def cross_attention(query, context, matrix, smooth, eps=1e-8):
     """
     Compute cross-attention weighted context.
@@ -768,8 +720,8 @@ class ContrastiveLoss(nn.Module):
 # Top-level Model
 # ---------------------------------------------------------------------------
 
-class SGRAF(nn.Module):
-    """Similarity Reasoning and Filtration (SGRAF) Network."""
+class CSAN(nn.Module):
+    """Similarity Reasoning and Filtration (CSAN) Network."""
 
     def __init__(self, opt):
         super().__init__()
